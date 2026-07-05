@@ -4,3 +4,7 @@ from mcp.server.fastmcp import FastMCP
 # FastMCP simplifies building Model Context Protocol (MCP) servers by providing 
 # a high-level API for defining tools, resources, and prompts.
 mcp = FastMCP("CRM Meeting Assistant Server")
+
+if __name__ == "__main__":
+    mcp.run()
+
