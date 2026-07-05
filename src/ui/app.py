@@ -86,9 +86,9 @@ if "crm_recommendation" not in st.session_state:
 async def run_pipeline_async(transcript_content: str):
     session_service = InMemorySessionService()
     await session_service.create_session(app_name="crm_assistant", user_id="user", session_id="s1")
-    session = await session_service.get_session("crm_assistant", "user", "s1")
     
     # Pre-populate session state with the transcript
+    session = await session_service.get_session("s1")
     session.state["transcript"] = transcript_content
     
     runner = Runner(agent=pipeline, app_name="crm_assistant", session_service=session_service)
