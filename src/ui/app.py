@@ -110,26 +110,45 @@ async def run_pipeline_async(transcript_content: str):
 st.title("💼 CRM Meeting Assistant")
 st.subheader("AI-Driven Meeting Analysis and Pipeline Sync")
 
-# Tabs representing the 7 Pages / steps
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+# Tabs representing the 8 Pages / steps
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "📝 1. Paste Transcript",
     "⚡ 2. Run Analysis",
     "📋 3. Summary",
     "📈 4. Buying Signals",
     "❤️ 5. Sentiment",
     "⚔️ 6. Competitor Mentions",
-    "🔄 7. Proposed Updates"
+    "🔄 7. Proposed Updates",
+    "📜 8. Activity History"
 ])
 
 # Page 1: Paste Transcript
 with tab1:
     st.header("Paste Meeting Transcript")
+    
+    # Dropdown to load sample transcripts
+    sample_dir = os.path.join(BASE_DIR, "sample_data", "transcripts")
+    sample_files = []
+    if os.path.exists(sample_dir):
+        sample_files = [f for f in os.listdir(sample_dir) if f.endswith(".txt")]
+        
+    selected_sample = st.selectbox(
+        "Load Sample Transcript (Optional)",
+        options=["None"] + sample_files
+    )
+    
+    loaded_text = ""
+    if selected_sample != "None":
+        with open(os.path.join(sample_dir, selected_sample), "r", encoding="utf-8") as f:
+            loaded_text = f.read()
+            st.session_state.transcript_text = loaded_text
+
     st.write("Input the conversation transcript of your customer call to extract sales details.")
     transcript_input = st.text_area(
         "Transcript Text",
         height=300,
         placeholder="Paste transcript here...",
-        value=st.session_state.transcript_text
+        value=st.session_state.transcript_text if st.session_state.transcript_text else loaded_text
     )
     if transcript_input:
         st.session_state.transcript_text = transcript_input
@@ -161,7 +180,7 @@ with tab2:
                         "confidence_score": 0.85,
                         "details": results["crm_recommendation"].recommended_field_updates
                     },
-                    source_transcript_id="trans_temp"
+                    source_transcript_id=selected_sample if selected_sample != "None" else "custom_transcript"
                 )
                 
             st.success("Analysis Completed! Navigate to subsequent tabs to view results.")
@@ -241,6 +260,9 @@ with tab7:
             st.markdown("**Transcript Evidence**:")
             st.markdown(f"<div class='evidence-box'>{changes.get('evidence', 'No specific evidence specified.')}</div>", unsafe_allow_html=True)
             
+            # Approver selector
+            user_approver = st.text_input(f"Approver Name for Update #{up_id}", value="Sales Manager", key=f"app_name_{up_id}")
+            
             # Action controls
             st.markdown("#### Actions:")
             act_col1, act_col2, act_col3 = st.columns(3)
@@ -248,13 +270,13 @@ with tab7:
             with act_col1:
                 # Approve
                 if st.button(f"Approve Update #{up_id}", key=f"app_{up_id}"):
-                    if crm_service.commit_crm_update(up_id):
+                    if crm_service.commit_crm_update(up_id, overridden_changes=changes, approver=user_approver):
                         st.success(f"Update #{up_id} successfully committed!")
                         st.rerun()
             with act_col2:
                 # Reject
                 if st.button(f"Reject Update #{up_id}", key=f"rej_{up_id}"):
-                    if crm_service.reject_crm_update(up_id):
+                    if crm_service.reject_crm_update(up_id, approver=user_approver):
                         st.warning(f"Update #{up_id} discarded.")
                         st.rerun()
             with act_col3:
@@ -271,3 +293,28 @@ with tab7:
                     st.rerun()
                     
             st.divider()
+
+# Page 8: Activity History (Audit Trail)
+with tab8:
+    st.header("CRM Update Activity Logs (Audit Trail)")
+    logs = db.fetch_all("SELECT * FROM audit_logs ORDER BY timestamp DESC")
+    
+    if not logs:
+        st.info("No audit logs recorded yet.")
+    else:
+        for log in logs:
+            details = json.loads(log["change_details"])
+            st.markdown(f"### Log #{log['id']} - Action: `{log['action']}` on `{log['target_table']}` (ID: {log['target_id']})")
+            st.caption(f"Logged at: {log['timestamp']}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**AI Suggestion**:")
+                st.json(details.get("ai_suggestion"))
+            with col2:
+                st.markdown("**Human Edits (Committed)**:")
+                st.json(details.get("human_edits") if details.get("human_edits") else "N/A (Rejected)")
+                
+            st.markdown(f"**Approver**: `{details.get('approver')}` | **Final Status**: `{details.get('status')}`")
+            st.divider()
+

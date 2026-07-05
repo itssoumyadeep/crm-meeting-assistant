@@ -1,0 +1,7 @@
+Transcript - competitor_mentioned:
+Sales Rep (Alex): Hello Sarah, glad we could connect today. How are your evaluations going?
+Customer (Sarah): Hi Alex, they are going alright. We are currently using Salesforce and looking at HubSpot as well, but their pricing seems a bit high for our team size.
+Alex: I see. Our product offers similar capabilities to HubSpot but at a much more competitive price point.
+Sarah: HubSpot is the standard for us right now, but we are open to alternatives if we can get a custom quote that fits our $30,000 budget.
+Alex: Absolutely, I can prepare a custom proposal comparing our features to HubSpot.
+Sarah: Sounds good, send it over.

@@ -1,0 +1,8 @@
+Transcript - normal_sales_call:
+Sales Rep (Alex): Hi John, thanks for joining the call today. How is everything going at Acme Corp?
+Customer (John): Hi Alex, doing well. We've been looking at our developer velocity and realize we need a tool to manage meeting action items automatically.
+Alex: That makes sense. Our solution integrates directly with your CRM and automatically updates stages and fields.
+John: That sounds promising. We actually have a budget of $45,000 allocated for this quarter to solve this pain point.
+Alex: Great. If we can set up a proposal by next week, could we target a go-live date of August 1st?
+John: Yes, if the proposal looks good, that timeline works for us. The VP of Operations has already signed off on the budget.
+Alex: Excellent. I will send over the customized proposal by Friday.

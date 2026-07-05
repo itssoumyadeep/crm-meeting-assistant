@@ -1,0 +1,6 @@
+Transcript - stalled_opportunity:
+Sales Rep (Alex): Hi Mark, just wanted to follow up on the proposal we sent last month.
+Customer (Mark): Hi Alex. Honestly, our priorities have shifted. The budget was frozen for this quarter by leadership.
+Alex: I understand. Is there a timeline when you expect the budget freeze to be lifted?
+Mark: Probably not until next year. We'll have to put this on hold for now.
+Alex: Okay, I will check back in with you in a few months.
