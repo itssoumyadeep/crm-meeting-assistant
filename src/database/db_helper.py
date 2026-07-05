@@ -37,9 +37,16 @@ class DatabaseHelper:
         """Open and return the database connection (idempotent)."""
         if self._connection is None:
             logger.debug("Opening SQLite connection to %s", self.db_path)
-            self._connection = sqlite3.connect(str(self.db_path))
+            self._connection = sqlite3.connect(
+                str(self.db_path), check_same_thread=False
+            )
             # Enforce referential integrity — SQLite disables it by default
             self._connection.execute("PRAGMA foreign_keys = ON;")
+            # WAL mode: allows concurrent reads alongside the writer.
+            # Required because Streamlit re-renders on every interaction.
+            self._connection.execute("PRAGMA journal_mode = WAL;")
+            # Avoid "database is locked" on momentary write contention
+            self._connection.execute("PRAGMA busy_timeout = 5000;")
             # Make rows behave like dicts
             self._connection.row_factory = sqlite3.Row
         return self._connection
@@ -117,7 +124,9 @@ class DatabaseHelper:
         try:
             cursor.execute(query, params)
             conn.commit()
-            result = cursor.lastrowid if cursor.lastrowid else cursor.rowcount
+            # lastrowid is set to the new row id on INSERT; use it when available.
+            # Fallback to rowcount for UPDATE/DELETE (rowcount ≥ 0 is always valid).
+            result = cursor.lastrowid if cursor.lastrowid is not None else cursor.rowcount
             logger.debug("execute() → %s  params=%s  result=%s", query[:80], params, result)
             return result
         except sqlite3.Error:
@@ -142,10 +151,14 @@ class DatabaseHelper:
         """
         conn = self.open()
         cursor = conn.cursor()
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        logger.debug("fetch_all() → %d rows  query=%s", len(rows), query[:80])
-        return [dict(row) for row in rows]
+        try:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            logger.debug("fetch_all() → %d rows  query=%s", len(rows), query[:80])
+            return [dict(row) for row in rows]
+        except sqlite3.Error:
+            logger.exception("fetch_all() failed.  query=%s", query[:80])
+            raise
 
     def fetch_one(self, query: str, params: Union[tuple, dict] = ()) -> Optional[dict[str, Any]]:
         """
@@ -160,7 +173,11 @@ class DatabaseHelper:
         """
         conn = self.open()
         cursor = conn.cursor()
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        logger.debug("fetch_one() → %s  query=%s", "hit" if row else "miss", query[:80])
-        return dict(row) if row else None
+        try:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            logger.debug("fetch_one() → %s  query=%s", "hit" if row else "miss", query[:80])
+            return dict(row) if row else None
+        except sqlite3.Error:
+            logger.exception("fetch_one() failed.  query=%s", query[:80])
+            raise

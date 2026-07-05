@@ -119,7 +119,8 @@ async def before_tool_callback(
 
     Checks (in order):
     1. Block every tool except ``propose_crm_update``.
-    2. Reject any string argument containing a known prompt-injection phrase.
+    2. Reject any string argument containing a known prompt-injection phrase
+       (recursively searches nested dicts and lists).
     3. Validate ``recommended_stage`` against the canonical allow-list.
     4. Redact credit-card numbers and SIN/SSN patterns from string args.
 
@@ -127,23 +128,34 @@ async def before_tool_callback(
         ``None`` to let the tool proceed, or raises ``ValueError`` to block it.
     """
     # 1. Tool allow-list
-    if tool.name != ALLOWED_TOOL_NAME:
+    # Note: 'set_model_response' is ADK's internal tool used to return structured outputs.
+    # We must allow it so agents that produce Pydantic output schemas can return their results.
+    if tool.name not in (ALLOWED_TOOL_NAME, "set_model_response"):
         msg = f"Blocked tool '{tool.name}': only '{ALLOWED_TOOL_NAME}' is permitted."
         logger.warning(msg)
         raise ValueError(msg)
 
-    # 2. Prompt-injection detection
-    for arg_name, arg_value in args.items():
-        if isinstance(arg_value, str):
-            lower_val = arg_value.lower()
+    # 2. Prompt-injection detection (recursive through nested structures)
+    def _scan_for_injection(value: object, path: str) -> None:
+        if isinstance(value, str):
+            lower_val = value.lower()
             for phrase in INJECTION_PHRASES:
                 if phrase in lower_val:
                     msg = (
                         f"Blocked: prompt-injection phrase '{phrase}' "
-                        f"detected in argument '{arg_name}'."
+                        f"detected in argument '{path}'."
                     )
                     logger.warning(msg)
                     raise ValueError(msg)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                _scan_for_injection(v, f"{path}.{k}")
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                _scan_for_injection(item, f"{path}[{i}]")
+
+    for arg_name, arg_value in args.items():
+        _scan_for_injection(arg_value, arg_name)
 
     # 3. CRM stage allow-list validation
     proposed_stage: Optional[str] = args.get("recommended_stage")

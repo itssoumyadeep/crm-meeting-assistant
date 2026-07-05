@@ -74,3 +74,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     change_details TEXT, -- JSON showing before/after states or generic details
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Indexes for hot query paths (avoids full-table scans on every page render)
+CREATE INDEX IF NOT EXISTS idx_pending_updates_status
+    ON pending_updates (status);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target
+    ON audit_logs (target_table, target_id);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp
+    ON audit_logs (timestamp DESC);

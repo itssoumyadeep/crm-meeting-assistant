@@ -21,9 +21,14 @@ Design notes:
   in a fresh thread with no pre-existing event loop.
 """
 import asyncio
+from dotenv import load_dotenv
+load_dotenv() # Load environment variables before importing ADK/Gemini pipeline modules
+
+import html
 import json
 import logging
 import os
+import uuid
 
 import streamlit as st
 from google.adk.runners import Runner
@@ -37,6 +42,10 @@ from src.utils.config import ADK_APP_NAME, DB_PATH, SAMPLE_TRANSCRIPTS_DIR
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Maximum transcript length accepted by the UI (characters).
+# Prevents accidental submission of multi-MB files that saturate the LLM context.
+_MAX_TRANSCRIPT_CHARS: int = 50_000
 
 # ---------------------------------------------------------------------------
 # Page config (must be the first Streamlit call)
@@ -141,14 +150,17 @@ async def _run_pipeline_async(transcript_content: str) -> dict:
     Raises:
         RuntimeError: Wrapped around any ADK runner exception.
     """
+    # Pass transcript as initial state at session-creation time.
+    # ADK's Runner re-fetches state from the service on every step, so
+    # mutating a local session object after get_session() has no effect.
+    session_id = f"run_{uuid.uuid4().hex}"
     session_service = InMemorySessionService()
     await session_service.create_session(
-        app_name=ADK_APP_NAME, user_id="user", session_id="s1"
+        app_name=ADK_APP_NAME,
+        user_id="user",
+        session_id=session_id,
+        state={"transcript": transcript_content},
     )
-
-    # Inject the transcript before the pipeline starts
-    session = await session_service.get_session("s1")
-    session.state["transcript"] = transcript_content
 
     runner = Runner(
         agent=pipeline, app_name=ADK_APP_NAME, session_service=session_service
@@ -157,18 +169,22 @@ async def _run_pipeline_async(transcript_content: str) -> dict:
     logger.info("Starting pipeline run for transcript (%d chars).", len(transcript_content))
     async for _ in runner.run_async(
         user_id="user",
-        session_id="s1",
+        session_id=session_id,
         new_message=types.Content(
             role="user", parts=[types.Part.from_text(text="Analyse this meeting transcript.")]
         ),
     ):
         pass  # drain the event stream; outputs land in session.state
 
+    # Read back the final session state to extract agent outputs
+    final_session = await session_service.get_session(
+        app_name=ADK_APP_NAME, user_id="user", session_id=session_id
+    )
     logger.info("Pipeline run complete.")
     return {
-        "transcript_summary": session.state.get("transcript_summary"),
-        "signals": session.state.get("signals"),
-        "crm_recommendation": session.state.get("crm_recommendation"),
+        "transcript_summary": final_session.state.get("transcript_summary"),
+        "signals": final_session.state.get("signals"),
+        "crm_recommendation": final_session.state.get("crm_recommendation"),
     }
 
 # ---------------------------------------------------------------------------
@@ -215,6 +231,7 @@ with tab1:
     selected_sample = st.selectbox(
         "Load a sample transcript (optional)",
         options=["None"] + sample_files,
+        key="selected_sample",
     )
 
     # When a sample is chosen, overwrite the session text immediately
@@ -233,6 +250,15 @@ with tab1:
     if transcript_input != st.session_state.transcript_text:
         st.session_state.transcript_text = transcript_input
 
+    char_count = len(st.session_state.transcript_text)
+    if char_count > 0:
+        st.caption(f"{char_count:,} characters loaded.")
+    if char_count > _MAX_TRANSCRIPT_CHARS:
+        st.warning(
+            f"⚠️ Transcript is very long ({char_count:,} chars). "
+            f"Consider trimming to under {_MAX_TRANSCRIPT_CHARS:,} characters for best results."
+        )
+
 # ─── Tab 2: Run Analysis ───────────────────────────────────────────────────
 with tab2:
     st.header("Run Multi-Agent Analysis")
@@ -242,10 +268,14 @@ with tab2:
     else:
         st.write("Click the button below to run the full analysis pipeline.")
         if st.button("▶ Start AI Analysis", type="primary"):
+            transcript_to_analyse = st.session_state.transcript_text
+            source_id = st.session_state.get("selected_sample", "custom_transcript")
+            if source_id == "None":
+                source_id = "custom_transcript"
             with st.spinner("Running pipeline — this may take 30–60 seconds…"):
                 try:
                     results = asyncio.run(
-                        _run_pipeline_async(st.session_state.transcript_text)
+                        _run_pipeline_async(transcript_to_analyse)
                     )
                 except Exception as exc:
                     logger.exception("Pipeline execution failed.")
@@ -259,18 +289,20 @@ with tab2:
 
             # Stage the AI recommendation for human review
             rec = results["crm_recommendation"]
+            # ADK stores state objects as serialized dicts; convert attribute-access to dict get-access.
+            recommended_stage = rec.get("recommended_stage") if isinstance(rec, dict) else getattr(rec, "recommended_stage", "")
+            recommended_field_updates = rec.get("recommended_field_updates", {}) if isinstance(rec, dict) else getattr(rec, "recommended_field_updates", {})
+            
             crm_service.create_pending_update(
                 target_table="deals",
                 target_id=1,  # Placeholder; real UI would resolve from context
                 proposed_changes={
-                    "stage": rec.recommended_stage,
+                    "stage": recommended_stage,
                     "evidence": "Extracted from buying signals and stage alignment.",
                     "confidence_score": 0.85,
-                    "details": rec.recommended_field_updates,
+                    "details": recommended_field_updates,
                 },
-                source_transcript_id=(
-                    selected_sample if selected_sample != "None" else "custom_transcript"
-                ),
+                source_transcript_id=source_id,
             )
 
             st.success("Analysis complete! Use the tabs above to explore results.")
@@ -282,16 +314,20 @@ with tab3:
         _analysis_required_notice()
     else:
         summary = st.session_state.summary
-        st.markdown(f"### Executive Summary\n\n{summary.summary}")
+        exec_summary = summary.get("summary", "") if isinstance(summary, dict) else getattr(summary, "summary", "")
+        action_items = summary.get("action_items", []) if isinstance(summary, dict) else getattr(summary, "action_items", [])
+        follow_up_tasks = summary.get("follow_up_tasks", []) if isinstance(summary, dict) else getattr(summary, "follow_up_tasks", [])
+        
+        st.markdown(f"### Executive Summary\n\n{exec_summary}")
 
         col_actions, col_followups = st.columns(2)
         with col_actions:
             st.subheader("Action Items")
-            for item in summary.action_items:
+            for item in action_items:
                 st.write(f"- {item}")
         with col_followups:
             st.subheader("Follow-up Tasks")
-            for task in summary.follow_up_tasks:
+            for task in follow_up_tasks:
                 st.write(f"- {task}")
 
 # ─── Tab 4: Buying Signals ─────────────────────────────────────────────────
@@ -301,10 +337,11 @@ with tab4:
         _analysis_required_notice()
     else:
         signals = st.session_state.signals
-        if not signals.buying_signals:
+        buying_signals = signals.get("buying_signals", []) if isinstance(signals, dict) else getattr(signals, "buying_signals", [])
+        if not buying_signals:
             st.info("No buying signals detected in this transcript.")
         else:
-            for idx, signal in enumerate(signals.buying_signals, start=1):
+            for idx, signal in enumerate(buying_signals, start=1):
                 st.markdown(
                     f"<div class='metric-card'><h4>Signal #{idx}</h4><p>{signal}</p></div>",
                     unsafe_allow_html=True,
@@ -316,7 +353,9 @@ with tab5:
     if not st.session_state.analysis_complete:
         _analysis_required_notice()
     else:
-        st.info(st.session_state.signals.customer_sentiment)
+        signals = st.session_state.signals
+        sentiment = signals.get("customer_sentiment", "") if isinstance(signals, dict) else getattr(signals, "customer_sentiment", "")
+        st.info(sentiment)
 
 # ─── Tab 6: Competitor Mentions ────────────────────────────────────────────
 with tab6:
@@ -324,7 +363,8 @@ with tab6:
     if not st.session_state.analysis_complete:
         _analysis_required_notice()
     else:
-        mentions = st.session_state.signals.competitor_mentions
+        signals = st.session_state.signals
+        mentions = signals.get("competitor_mentions", []) if isinstance(signals, dict) else getattr(signals, "competitor_mentions", [])
         if not mentions:
             st.success("No competitors mentioned in this call.")
         else:
@@ -358,10 +398,13 @@ with tab7:
                 st.json(changes.get("details", {}))
 
             st.markdown("**Transcript Evidence:**")
+            # HTML-escape the evidence to prevent XSS from AI-produced text
+            # rendered via unsafe_allow_html inside the styled div.
+            safe_evidence = html.escape(
+                changes.get("evidence", "No evidence specified.")
+            )
             st.markdown(
-                f"<div class='evidence-box'>"
-                f"{changes.get('evidence', 'No evidence specified.')}"
-                f"</div>",
+                f"<div class='evidence-box'>{safe_evidence}</div>",
                 unsafe_allow_html=True,
             )
 

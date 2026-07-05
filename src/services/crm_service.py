@@ -19,13 +19,17 @@ import sqlite3
 from typing import Optional
 
 from src.database.db_helper import DatabaseHelper
-from src.utils.config import NON_COLUMN_FIELDS
+from src.utils.config import ALLOWED_DB_COLUMNS, NON_COLUMN_FIELDS
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 # DB columns that are never written to contacts / deals tables
 _NON_COLUMN_FIELDS: frozenset[str] = NON_COLUMN_FIELDS
+
+# Allow-list of writable columns per table — prevents SQL column injection
+# from AI-generated field names embedded in the recommended_field_updates dict.
+_ALLOWED_COLUMNS: dict[str, frozenset[str]] = ALLOWED_DB_COLUMNS
 
 
 class CRMService:
@@ -227,12 +231,24 @@ class CRMService:
         if isinstance(changes.get("details"), dict):
             db_updates.update(changes["details"])
 
+        # SECURITY: validate column names against the per-table allow-list.
+        # AI-produced recommended_field_updates may contain arbitrary key names;
+        # injecting them directly into an f-string SET clause is an SQL injection risk.
+        allowed: frozenset[str] = _ALLOWED_COLUMNS.get(target_table, frozenset())
+        invalid_cols = set(db_updates) - allowed
+        if invalid_cols:
+            logger.warning(
+                "_apply_changes_to_table: rejecting unknown columns for %s: %s",
+                target_table, invalid_cols,
+            )
+        db_updates = {k: v for k, v in db_updates.items() if k in allowed}
+
         if not db_updates:
-            logger.debug("_apply_changes_to_table: no column updates to apply.")
+            logger.debug("_apply_changes_to_table: no valid column updates to apply.")
             return
 
-        # Build parameterised SET clause — column names come from our own code,
-        # not from user input, so f-string interpolation is safe here.
+        # Build parameterised SET clause — column names are validated above,
+        # so f-string interpolation here is safe.
         set_clause = ", ".join(f"{col} = ?" for col in db_updates)
         params: tuple = (*db_updates.values(), target_id)
 

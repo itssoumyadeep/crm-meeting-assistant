@@ -52,11 +52,22 @@ MCP_SERVER_NAME: str = "CRM Meeting Assistant Server"
 # Guardrails
 # ---------------------------------------------------------------------------
 #: Phrases whose presence in any tool argument triggers a hard block.
+#: Covers the most common prompt-injection patterns in the OWASP LLM Top-10.
 INJECTION_PHRASES: tuple[str, ...] = (
     "ignore previous instructions",
-    "system prompt",
+    "ignore all previous",
+    "forget previous instructions",
     "disregard",
+    "system prompt",
     "as an ai",
+    "you are now",
+    "act as",
+    "jailbreak",
+    "new instructions",
+    "override instructions",
+    "reveal your prompt",
+    "show your instructions",
+    "print your system",
 )
 
 #: The only tool name that crm_mapper_agent is allowed to invoke.
@@ -76,3 +87,15 @@ VALID_DEAL_STAGES: tuple[str, ...] = (
 
 #: DB columns that must NOT be written to the target table (metadata only).
 NON_COLUMN_FIELDS: frozenset[str] = frozenset({"evidence", "confidence_score", "details"})
+
+#: Per-table allow-list of writable columns for CRMService._apply_changes_to_table.
+#: Only these column names may appear in the SQL SET clause produced from
+#: AI-generated recommended_field_updates — all others are silently dropped.
+ALLOWED_DB_COLUMNS: dict[str, frozenset[str]] = {
+    "deals": frozenset({
+        "name", "amount", "stage", "status", "close_date", "contact_id",
+    }),
+    "contacts": frozenset({
+        "first_name", "last_name", "email", "phone", "company", "job_title",
+    }),
+}
