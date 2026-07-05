@@ -42,6 +42,24 @@ def get_contact(name: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+@mcp.tool()
+def get_deal_stage_options() -> list[str]:
+    """
+    Retrieve the allowed pipeline stages for deals in the CRM.
+    
+    Returns:
+        A list of valid deal stage names.
+    """
+    return [
+        "Prospecting",
+        "Qualified",
+        "Proposal",
+        "Negotiation",
+        "Closed Won",
+        "Closed Lost"
+    ]
+
+
 if __name__ == "__main__":
     mcp.run()
 
