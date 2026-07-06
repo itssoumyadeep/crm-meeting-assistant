@@ -190,8 +190,8 @@ transcript_agent = Agent(
     name="transcript_agent",
     model=_model,
     description="Summarises meeting transcripts and extracts action items and follow-up tasks.",
-    instruction="""
-    Carefully analyse the meeting transcript provided in {transcript}.
+    instruction=f"""
+    Carefully analyse the meeting transcript provided in {{transcript}}.
 
     Transcript handoff skill:
     {_transcript_playbook_content}
