@@ -192,7 +192,7 @@ async def _run_pipeline_async(transcript_content: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _analysis_required_notice() -> None:
-    st.info("Analysis has not been run yet. Go to **Tab 2 – Run Analysis** first.")
+    st.info("Analysis has not been run yet. Go to **Tab 1 – Paste Transcript** and start it there.")
 
 # ---------------------------------------------------------------------------
 # Helper — load sample transcript file list
@@ -259,12 +259,8 @@ with tab1:
             f"Consider trimming to under {_MAX_TRANSCRIPT_CHARS:,} characters for best results."
         )
 
-# ─── Tab 2: Run Analysis ───────────────────────────────────────────────────
-with tab2:
-    st.header("Run Multi-Agent Analysis")
-
     if not st.session_state.transcript_text:
-        st.warning("Please paste or load a transcript in **Tab 1** first.")
+        st.warning("Please paste or load a transcript before starting analysis.")
     else:
         st.write("Click the button below to run the full analysis pipeline.")
         if st.button("▶ Start AI Analysis", type="primary"):
@@ -292,7 +288,7 @@ with tab2:
             # ADK stores state objects as serialized dicts; convert attribute-access to dict get-access.
             recommended_stage = rec.get("recommended_stage") if isinstance(rec, dict) else getattr(rec, "recommended_stage", "")
             recommended_field_updates = rec.get("recommended_field_updates", {}) if isinstance(rec, dict) else getattr(rec, "recommended_field_updates", {})
-            
+
             crm_service.create_pending_update(
                 target_table="deals",
                 target_id=1,  # Placeholder; real UI would resolve from context
@@ -306,6 +302,44 @@ with tab2:
             )
 
             st.success("Analysis complete! Use the tabs above to explore results.")
+
+# ─── Tab 2: Run Analysis ───────────────────────────────────────────────────
+with tab2:
+    st.header("Run Multi-Agent Analysis")
+    if not st.session_state.analysis_complete:
+        st.info(
+            "Start the analysis from **Tab 1 – Paste Transcript**. Results will populate here and in the other tabs after it runs."
+        )
+    else:
+        st.success("Analysis has completed successfully.")
+
+        summary = st.session_state.summary
+        exec_summary = summary.get("summary", "") if isinstance(summary, dict) else getattr(summary, "summary", "")
+        action_items = summary.get("action_items", []) if isinstance(summary, dict) else getattr(summary, "action_items", [])
+
+        signals = st.session_state.signals
+        buying_signals = signals.get("buying_signals", []) if isinstance(signals, dict) else getattr(signals, "buying_signals", [])
+        competitor_mentions = signals.get("competitor_mentions", []) if isinstance(signals, dict) else getattr(signals, "competitor_mentions", [])
+        sentiment = signals.get("customer_sentiment", "") if isinstance(signals, dict) else getattr(signals, "customer_sentiment", "")
+
+        crm_recommendation = st.session_state.crm_recommendation
+        recommended_stage = crm_recommendation.get("recommended_stage", "") if isinstance(crm_recommendation, dict) else getattr(crm_recommendation, "recommended_stage", "")
+
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.metric("Action items", len(action_items))
+        with col_b:
+            st.metric("Buying signals", len(buying_signals))
+        with col_c:
+            st.metric("Competitors", len(competitor_mentions))
+
+        st.markdown("### Executive Summary")
+        st.write(exec_summary or "No summary available.")
+
+        st.markdown("### Snapshot")
+        st.write(f"**Sentiment:** {sentiment or 'Unknown'}")
+        st.write(f"**Recommended CRM stage:** {recommended_stage or 'Unknown'}")
+        st.caption("Use the other tabs for the full breakdown and the review/approval workflow.")
 
 # ─── Tab 3: Summary ────────────────────────────────────────────────────────
 with tab3:

@@ -36,6 +36,7 @@ from src.utils.config import (
     MODEL_NAME,
     MODEL_RETRY_ATTEMPTS,
     PLAYBOOK_PATH,
+    TRANSCRIPT_PLAYBOOK_PATH,
 )
 from src.utils.logging_config import get_logger
 
@@ -57,6 +58,12 @@ if not PLAYBOOK_PATH.exists():
 
 _playbook_content: str = PLAYBOOK_PATH.read_text(encoding="utf-8")
 logger.info("Loaded deal-scoring playbook from %s", PLAYBOOK_PATH)
+
+if not TRANSCRIPT_PLAYBOOK_PATH.exists():
+    raise FileNotFoundError(f"Transcript handoff playbook not found: {TRANSCRIPT_PLAYBOOK_PATH}")
+
+_transcript_playbook_content: str = TRANSCRIPT_PLAYBOOK_PATH.read_text(encoding="utf-8")
+logger.info("Loaded transcript handoff playbook from %s", TRANSCRIPT_PLAYBOOK_PATH)
 
 # ---------------------------------------------------------------------------
 # PII redaction — compiled once at module load
@@ -185,6 +192,9 @@ transcript_agent = Agent(
     description="Summarises meeting transcripts and extracts action items and follow-up tasks.",
     instruction="""
     Carefully analyse the meeting transcript provided in {transcript}.
+
+    Transcript handoff skill:
+    {_transcript_playbook_content}
 
     Produce:
     - A concise executive summary (3–5 sentences) covering attendees, key pain points, and main themes.

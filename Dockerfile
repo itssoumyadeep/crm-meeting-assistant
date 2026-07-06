@@ -21,6 +21,8 @@ WORKDIR /code
 COPY ./pyproject.toml ./README.md ./uv.lock* ./
 
 COPY ./app ./app
+COPY ./src ./src
+COPY ./sample_data ./sample_data
 
 RUN uv sync --frozen
 
@@ -30,6 +32,10 @@ ENV COMMIT_SHA=${COMMIT_SHA}
 ARG AGENT_VERSION=0.0.0
 ENV AGENT_VERSION=${AGENT_VERSION}
 
-EXPOSE 8080
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_PORT=7860
+ENV STREAMLIT_SERVER_HEADLESS=true
 
-CMD ["uv", "run", "uvicorn", "app.fast_api_app:app", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 7860
+
+CMD ["uv", "run", "streamlit", "run", "src/ui/app.py", "--server.address", "0.0.0.0", "--server.port", "7860"]

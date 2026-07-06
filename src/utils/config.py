@@ -31,6 +31,9 @@ SAMPLE_TRANSCRIPTS_DIR: Path = PROJECT_ROOT / "sample_data" / "transcripts"
 #: Path to the deal-scoring playbook injected into the CRM Mapper agent.
 PLAYBOOK_PATH: Path = PROJECT_ROOT / "src" / "skills" / "deal-scoring-skill" / "playbook.md"
 
+#: Path to the transcript-handoff playbook injected into the Transcript agent.
+TRANSCRIPT_PLAYBOOK_PATH: Path = PROJECT_ROOT / "src" / "skills" / "transcript-handoff-skill" / "playbook.md"
+
 # ---------------------------------------------------------------------------
 # ADK / Gemini
 # ---------------------------------------------------------------------------

@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CRM Meeting Assistant Architecture</title>
+    <style>
+        :root {
+            --bg: #08111f;
+            --panel: rgba(16, 26, 44, 0.88);
+            --panel-strong: #0f1b31;
+            --line: rgba(148, 163, 184, 0.18);
+            --text: #e5eefb;
+            --muted: #9fb0c7;
+            --accent: #36d1dc;
+            --accent-2: #f59e0b;
+            --accent-3: #7dd3fc;
+            --good: #34d399;
+            --warn: #fbbf24;
+            --bad: #fb7185;
+            --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+            --radius-xl: 28px;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --max: 1200px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            background:
+                radial-gradient(circle at top left, rgba(54, 209, 220, 0.20), transparent 30%),
+                radial-gradient(circle at top right, rgba(245, 158, 11, 0.16), transparent 28%),
+                linear-gradient(180deg, #07101d 0%, #091527 46%, #050a14 100%);
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 20% 15%, rgba(125, 211, 252, 0.12), transparent 24%),
+                radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.10), transparent 22%),
+                radial-gradient(circle at 50% 90%, rgba(54, 209, 220, 0.10), transparent 25%),
+                linear-gradient(180deg, #08111f 0%, #07101c 100%);
+        }
+
+        .shell {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 32px 20px 56px;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            background: linear-gradient(180deg, rgba(12, 19, 34, 0.96), rgba(10, 16, 30, 0.92));
+            box-shadow: var(--shadow);
+            padding: 34px;
+            isolation: isolate;
+        }
+
+        .hero::before,
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: auto;
+            border-radius: 999px;
+            filter: blur(8px);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .hero::before {
+            width: 260px;
+            height: 260px;
+            top: -100px;
+            right: -70px;
+            background: radial-gradient(circle, rgba(54, 209, 220, 0.20), transparent 65%);
+        }
+
+        .hero::after {
+            width: 220px;
+            height: 220px;
+            bottom: -90px;
+            left: -60px;
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.16), transparent 65%);
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(54, 209, 220, 0.26);
+            background: rgba(7, 17, 29, 0.65);
+            color: var(--accent-3);
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 18px 0 12px;
+            font-size: clamp(2.2rem, 4vw, 4.2rem);
+            line-height: 1.03;
+            letter-spacing: -0.04em;
+            max-width: 12ch;
+        }
+
+        .lead {
+            max-width: 70ch;
+            font-size: 1.05rem;
+            color: var(--muted);
+            margin: 0 0 20px;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 26px;
+        }
+
+        .stat {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(10, 18, 32, 0.86);
+            padding: 16px 18px;
+        }
+
+        .stat .label {
+            display: block;
+            font-size: 0.78rem;
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .stat strong {
+            display: block;
+            font-size: 1.08rem;
+            line-height: 1.35;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.55fr 1fr;
+            gap: 22px;
+            margin-top: 22px;
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            padding: 24px;
+        }
+
+        .panel h2 {
+            margin: 0 0 8px;
+            font-size: 1.45rem;
+            letter-spacing: -0.03em;
+        }
+
+        .panel p.sub {
+            margin: 0 0 20px;
+            color: var(--muted);
+        }
+
+        .mermaid-wrap {
+            overflow-x: auto;
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(4, 10, 19, 0.50);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+        }
+
+        .cards {
+            display: grid;
+            gap: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(8, 15, 27, 0.90);
+            padding: 18px;
+        }
+
+        .card h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+            color: #f8fbff;
+        }
+
+        .card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(15, 23, 42, 0.72);
+            color: #dbeafe;
+            font-size: 0.8rem;
+        }
+
+        .section {
+            margin-top: 22px;
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .flow {
+            counter-reset: step;
+            display: grid;
+            gap: 14px;
+        }
+
+        .step {
+            display: grid;
+            grid-template-columns: 48px 1fr;
+            gap: 14px;
+            align-items: start;
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(8, 14, 26, 0.88);
+        }
+
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            display: grid;
+            place-items: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(54, 209, 220, 0.22), rgba(245, 158, 11, 0.18));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .step h3 {
+            margin: 2px 0 6px;
+            font-size: 1rem;
+        }
+
+        .step p {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .file {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(8, 15, 27, 0.88);
+            padding: 16px;
+        }
+
+        .file .path {
+            display: block;
+            color: var(--accent-3);
+            font-weight: 700;
+            text-decoration: none;
+            margin-bottom: 8px;
+            word-break: break-word;
+        }
+
+        .file .path:hover {
+            text-decoration: underline;
+        }
+
+        .file p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .validation {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        .status-box {
+            padding: 18px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(8, 15, 27, 0.92);
+        }
+
+        .badge {
+            display: inline-flex;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .badge.good {
+            background: rgba(52, 211, 153, 0.16);
+            color: var(--good);
+        }
+
+        .badge.warn {
+            background: rgba(251, 191, 36, 0.14);
+            color: var(--warn);
+        }
+
+        .badge.bad {
+            background: rgba(251, 113, 133, 0.14);
+            color: var(--bad);
+        }
+
+        .status-box h3 {
+            margin: 0 0 8px;
+            font-size: 1.02rem;
+        }
+
+        .status-box p,
+        .status-box li {
+            color: var(--muted);
+            margin: 0;
+        }
+
+        ul {
+            margin: 10px 0 0 20px;
+            padding: 0;
+        }
+
+        .footer-note {
+            margin-top: 22px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 0.95em;
+            color: #dbeafe;
+            background: rgba(148, 163, 184, 0.10);
+            padding: 0.14rem 0.38rem;
+            border-radius: 6px;
+        }
+
+        @media (max-width: 980px) {
+
+            .grid,
+            .validation,
+            .section-grid,
+            .hero-grid,
+            .file-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero {
+                padding: 24px;
+            }
+
+            .shell {
+                padding: 16px 14px 40px;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.mermaid) {
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: 'dark',
+                    securityLevel: 'strict',
+                    themeVariables: {
+                        fontFamily: 'Avenir Next, Segoe UI, Trebuchet MS, sans-serif',
+                        primaryColor: '#0f1b31',
+                        primaryTextColor: '#e5eefb',
+                        primaryBorderColor: '#36d1dc',
+                        lineColor: '#5b748f',
+                        secondaryColor: '#152640',
+                        tertiaryColor: '#0b1424'
+                    }
+                });
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <main class="shell">
+        <section class="hero">
+            <span class="eyebrow">CRM Meeting Assistant Architecture</span>
+            <h1>From transcript to CRM update, with a human approval gate.</h1>
+            <p class="lead">
+                This project combines a Streamlit front end, an ADK multi-agent pipeline, a read-only MCP server,
+                and a local SQLite CRM store. The core rule is simple: the model can propose changes, but only a human
+                can approve them.
+            </p>
+
+            <div class="hero-grid">
+                <div class="stat">
+                    <span class="label">Primary UI</span>
+                    <strong>Streamlit workflow in <code>src/ui/app.py</code></strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Analysis engine</span>
+                    <strong>Sequential ADK pipeline in <code>src/agents/pipeline.py</code></strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Custom skill</span>
+                    <strong>Transcript handoff skill shapes summary and follow-up extraction</strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Data layer</span>
+                    <strong>SQLite with WAL and column allow-lists</strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Safety model</span>
+                    <strong>Prompt-injection scan, PII redaction, and stage validation</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <article class="panel">
+                <h2>System Flow</h2>
+                <p class="sub">The diagram below reflects the runtime path used by the demo UI and the ADK pipeline.</p>
+                <div class="mermaid-wrap">
+                    <div class="mermaid">
+                        flowchart TD
+                        U["User pastes transcript in Streamlit UI\nsrc/ui/app.py"] --> A["ADK Sequential
+                        Pipeline\nsrc/agents/pipeline.py"]
+                        A --> T["TranscriptAgent\nsummary + action items"]
+                        T --> S["SignalAgent\nbuying signals + competitor mentions"]
+                        S --> C["CRMMapperAgent\nrecommended stage + field updates"]
+                        C --> G["Guardrails\nallow-list + injection scan + PII redaction"]
+                        G --> P["pending_updates\nreview queue"]
+                        P --> H["Human approve / edit / reject"]
+                        H --> D["SQLite CRM store\ncontacts, deals, audit_logs"]
+                        M["FastMCP server\nsrc/mcp_server/server.py"] --> R["Read-only CRM lookup tools"]
+                        R --> C
+                        D --> U
+                    </div>
+                </div>
+            </article>
+
+            <aside class="panel">
+                <h2>Architecture Summary</h2>
+                <p class="sub">What each layer is responsible for.</p>
+                <div class="cards">
+                    <div class="card">
+                        <h3>Presentation</h3>
+                        <p>The Streamlit app exposes the full workflow in eight tabs: transcript input, analysis,
+                            summary, signals, sentiment, competitor mentions, review, and history.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Orchestration</h3>
+                        <p>The ADK pipeline first extracts transcript intelligence and then maps that analysis into
+                            CRM-relevant recommendations.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Safety</h3>
+                        <p>The only write-capable action is the guarded CRM proposal path. Invalid stages, injection
+                            strings, and sensitive identifiers are blocked before any write.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Persistence</h3>
+                        <p>SQLite stores contacts, deals, pending updates, and immutable audit logs. The app uses a
+                            local database for a fast demo loop.</p>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="section panel">
+            <h2>Request Lifecycle</h2>
+            <p class="sub">A single transcript moves through these stages before anything reaches the CRM.</p>
+            <div class="flow">
+                <div class="step">
+                    <div>
+                        <h3>Transcript capture</h3>
+                        <p>The user pastes or loads a sample transcript in the Streamlit UI.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div>
+                        <h3>Parallel analysis</h3>
+                        <p>The ADK agents extract a summary, action items, buying signals, competitor mentions, and
+                            sentiment.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div>
+                        <h3>CRM recommendation</h3>
+                        <p>The mapper agent proposes a stage and field updates, but does not write directly to the CRM.
+                        </p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div>
+                        <h3>Guardrail screening</h3>
+                        <p>Tool allow-lists, stage validation, and sensitive-data redaction happen before tool
+                            execution.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div>
+                        <h3>Human review</h3>
+                        <p>The proposed changes appear in the review tab for approve, edit, or reject actions.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div>
+                        <h3>Commit and audit</h3>
+                        <p>Approved changes update the SQLite CRM tables and are recorded in the audit trail.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section panel">
+            <h2>Key Files</h2>
+            <p class="sub">The architecture is split across these main code paths.</p>
+            <div class="file-grid">
+                <div class="file">
+                    <a class="path" href="app/agent.py">app/agent.py</a>
+                    <p>ADK app entry point with the parallel analysis pipeline used by the deployment target.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="app/fast_api_app.py">app/fast_api_app.py</a>
+                    <p>FastAPI and A2A server entry point for the agent runtime surface.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="src/ui/app.py">src/ui/app.py</a>
+                    <p>Streamlit front end that runs the pipeline and presents review tabs.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="src/agents/pipeline.py">src/agents/pipeline.py</a>
+                    <p>Sequential agent chain, guardrails, PII redaction, and CRM proposal tool.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="src/mcp_server/server.py">src/mcp_server/server.py</a>
+                    <p>FastMCP server exposing read-only CRM lookups and stage options.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="src/services/crm_service.py">src/services/crm_service.py</a>
+                    <p>Pending-update lifecycle, SQL allow-list enforcement, and audit log writes.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="src/database/db_helper.py">src/database/db_helper.py</a>
+                    <p>SQLite connection helper with WAL mode and foreign-key support.</p>
+                </div>
+                <div class="file">
+                    <a class="path" href="tests/unit/test_guardrails.py">tests/unit/test_guardrails.py</a>
+                    <p>Security-focused tests for injection blocking, redaction, and SQL allow-lists.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section validation">
+            <div class="status-box">
+                <span class="badge good">Validation</span>
+                <h3>What passed</h3>
+                <ul>
+                    <li>The unit suite passed cleanly, including guardrails, PII redaction, and SQLite pragma checks.
+                    </li>
+                    <li>Total tests collected: 32.</li>
+                </ul>
+            </div>
+
+            <div class="status-box">
+                <span class="badge warn">Known issue</span>
+                <h3>What failed</h3>
+                <ul>
+                    <li>The integration server startup failed because telemetry initialization requires Google ADC
+                        credentials.</li>
+                    <li><code>tests/integration/test_agent.py::test_agent_stream</code> also returned no streaming
+                        events in this environment.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="section panel">
+            <h2>Design Notes</h2>
+            <div class="section-grid">
+                <div class="card">
+                    <h3>Why a sequential pipeline</h3>
+                    <p>Each stage enriches session state so downstream agents can build on prior results without
+                        reparsing the transcript.</p>
+                </div>
+                <div class="card">
+                    <h3>Why a review queue</h3>
+                    <p>The app stages CRM changes in <code>pending_updates</code> so no model output reaches the CRM
+                        without human approval.</p>
+                </div>
+                <div class="card">
+                    <h3>Why MCP is read-only</h3>
+                    <p>The agent can query contacts and valid deal stages without taking direct database dependencies
+                        into write paths.</p>
+                </div>
+            </div>
+            <p class="footer-note">
+                Open this file directly from the workspace root or serve it with your preferred static file viewer.
+            </p>
+        </section>
+    </main>
+</body>
+
+</html>
