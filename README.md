@@ -1,3 +1,12 @@
+---
+title: CRM Meeting Assistant
+emoji: 💼
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_file: src/ui/app.py
+---
+
 # 💼 CRM Meeting Assistant
 
 > **AI-powered sales copilot** — paste a meeting transcript, get a structured analysis, and sync approved updates to your CRM in one click.
